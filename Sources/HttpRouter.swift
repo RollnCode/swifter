@@ -7,6 +7,7 @@
 
 import Foundation
 
+public typealias HttpRouterHandler = (HttpRequest, @escaping ((HttpResponse) -> Void)) -> Void
 
 open class HttpRouter {
     
@@ -15,7 +16,8 @@ open class HttpRouter {
     
     private class Node {
         var nodes = [String: Node]()
-        var handler: ((HttpRequest) -> HttpResponse)? = nil
+//        var handler: ((HttpRequest) -> HttpResponse)? = nil
+        var handler: HttpRouterHandler? = nil
     }
     
     private var rootNode = Node()
@@ -39,7 +41,7 @@ open class HttpRouter {
         return result
     }
     
-    public func register(_ method: String?, path: String, handler: ((HttpRequest) -> HttpResponse)?) {
+    public func register(_ method: String?, path: String, handler: HttpRouterHandler?) {
         var pathSegments = stripQuery(path).split("/")
         if let method = method {
             pathSegments.insert(method, at: 0)
@@ -50,7 +52,7 @@ open class HttpRouter {
         inflate(&rootNode, generator: &pathSegmentsGenerator).handler = handler
     }
     
-    public func route(_ method: String?, path: String) -> ([String: String], (HttpRequest) -> HttpResponse)? {
+    public func route(_ method: String?, path: String) -> ([String: String], HttpRouterHandler)? {
         if let method = method {
             let pathSegments = (method + "/" + stripQuery(path)).split("/")
             var pathSegmentsGenerator = pathSegments.makeIterator()
@@ -80,7 +82,7 @@ open class HttpRouter {
         return node
     }
     
-    private func findHandler(_ node: inout Node, params: inout [String: String], generator: inout IndexingIterator<[String]>) -> ((HttpRequest) -> HttpResponse)? {
+    private func findHandler(_ node: inout Node, params: inout [String: String], generator: inout IndexingIterator<[String]>) -> HttpRouterHandler? {
         guard let pathToken = generator.next() else {
             // if it's the last element of the requested URL, check if there is a pattern with variable tail.
             if let variableNode = node.nodes.filter({ $0.0.characters.first == ":" }).first {

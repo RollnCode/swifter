@@ -10,16 +10,19 @@ import Foundation
 
 public func websocket(
       _ text: ((WebSocketSession, String) -> Void)?,
-    _ binary: ((WebSocketSession, [UInt8]) -> Void)?) -> ((HttpRequest) -> HttpResponse) {
-    return { r in
+    _ binary: ((WebSocketSession, [UInt8]) -> Void)?) -> HttpRouterHandler {
+    return { (r, h) in
         guard r.hasTokenForHeader("upgrade", token: "websocket") else {
-            return .badRequest(.text("Invalid value of 'Upgrade' header: \(r.headers["upgrade"] ?? "unknown")"))
+            h( .badRequest(.text("Invalid value of 'Upgrade' header: \(r.headers["upgrade"] ?? "unknown")")) )
+            return
         }
         guard r.hasTokenForHeader("connection", token: "upgrade") else {
-            return .badRequest(.text("Invalid value of 'Connection' header: \(r.headers["connection"] ?? "unknown")"))
+            h( .badRequest(.text("Invalid value of 'Connection' header: \(r.headers["connection"] ?? "unknown")")) )
+            return
         }
         guard let secWebSocketKey = r.headers["sec-websocket-key"] else {
-            return .badRequest(.text("Invalid value of 'Sec-Websocket-Key' header: \(r.headers["sec-websocket-key"] ?? "unknown")"))
+            h( .badRequest(.text("Invalid value of 'Sec-Websocket-Key' header: \(r.headers["sec-websocket-key"] ?? "unknown")")) )
+            return
         }
         let protocolSessionClosure: ((Socket) -> Void) = { socket in
             let session = WebSocketSession(socket)
@@ -120,10 +123,10 @@ public func websocket(
             }
         }
         guard let secWebSocketAccept = String.toBase64((secWebSocketKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").sha1()) else {
-            return HttpResponse.internalServerError
+            return h( .internalServerError )
         }
         let headers = ["Upgrade": "WebSocket", "Connection": "Upgrade", "Sec-WebSocket-Accept": secWebSocketAccept]
-        return HttpResponse.switchProtocols(headers, protocolSessionClosure)
+        return h( .switchProtocols(headers, protocolSessionClosure) )
     }
 }
 

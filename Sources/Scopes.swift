@@ -7,13 +7,13 @@
 
 import Foundation
 
-public func scopes(_ scope: @escaping Closure) -> ((HttpRequest) -> HttpResponse) {
-    return { r in
+public func scopes(_ scope: @escaping Closure) -> HttpRouterHandler {
+    return { (r, handler) in
         ScopesBuffer[Process.tid] = ""
         scope()
-        return .raw(200, "OK", ["Content-Type": "text/html"], {
+        handler(.raw(200, "OK", ["Content-Type": "text/html"], {
             try? $0.write([UInt8](("<!DOCTYPE html>"  + (ScopesBuffer[Process.tid] ?? "")).utf8))
-        })
+        }))
     }
 }
 

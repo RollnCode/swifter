@@ -110,8 +110,8 @@ public class HttpServerIO {
         self.state = .stopped
     }
 
-    public func dispatch(_ request: HttpRequest) -> ([String: String], (HttpRequest) -> HttpResponse) {
-        return ([:], { _ in HttpResponse.notFound })
+    public func dispatch(_ request: HttpRequest) -> ([String: String], HttpRouterHandler) {
+        return ([:], { (r, h) in h(.notFound) })
     }
 
     private func handleConnection(_ socket: Socket) {
@@ -121,24 +121,31 @@ public class HttpServerIO {
             request.address = try? socket.peername()
             let (params, handler) = self.dispatch(request)
             request.params = params
-            let response = handler(request)
-            var keepConnection = parser.supportsKeepAlive(request.headers)
-            do {
-                if self.operating {
-                    keepConnection = try self.respond(socket, response: response, keepAlive: keepConnection)
+            
+            handler(request) { [weak self] response in
+                guard let this = self else {
+                    socket.close()
+                    return
                 }
-            } catch {
-                print("Failed to send response: \(error)")
-                break
+                
+                var keepConnection = parser.supportsKeepAlive(request.headers)
+                do {
+                    if this.operating {
+                        keepConnection = try this.respond(socket, response: response, keepAlive: keepConnection)
+                    }
+                } catch {
+                    print("Failed to send response: \(error)")
+                    socket.close()
+                }
+                if let session = response.socketSession() {
+                    this.delegate?.socketConnectionReceived(socket)
+                    session(socket)
+                    socket.close()
+                }
+                if !keepConnection { socket.close() }
+
             }
-            if let session = response.socketSession() {
-                delegate?.socketConnectionReceived(socket)
-                session(socket)
-                break
-            }
-            if !keepConnection { break }
         }
-        socket.close()
     }
 
     private struct InnerWriteContext: HttpResponseBodyWriter {

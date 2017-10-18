@@ -30,9 +30,9 @@ public func demoServer(_ publicDir: String) -> HttpServer {
         }
     }
     
-    server["/magic"] = { .ok(.html("You asked for " + $0.path)) }
+    server["/magic"] = { (r, h) in h(.ok(.html("You asked for " + r.path))) }
     
-    server["/test/:param1/:param2"] = { r in
+    server["/test/:param1/:param2"] = { (r, h) in
         scopes {
             html {
                 body {
@@ -68,7 +68,7 @@ public func demoServer(_ publicDir: String) -> HttpServer {
                     }
                 }
             }
-        }(r)
+        }(r, h)
     }
     
     server.GET["/upload"] = scopes {
@@ -92,13 +92,13 @@ public func demoServer(_ publicDir: String) -> HttpServer {
         }
     }
     
-    server.POST["/upload"] = { r in
+    server.POST["/upload"] = { (r, h) in
         var response = ""
         for multipart in r.parseMultiPartFormData() {
             guard let name = multipart.name, let fileName = multipart.fileName else { continue }
             response += "Name: \(name) File name: \(fileName) Size: \(multipart.body.count)<br>"
         }
-        return HttpResponse.ok(.html(response))
+        h(.ok(.html(response)))
     }
     
     server.GET["/login"] = scopes {
@@ -134,9 +134,9 @@ public func demoServer(_ publicDir: String) -> HttpServer {
         }
     }
     
-    server.POST["/login"] = { r in
+    server.POST["/login"] = { (r, h) in
         let formFields = r.parseUrlencodedForm()
-        return HttpResponse.ok(.html(formFields.map({ "\($0.0) = \($0.1)" }).joined(separator: "<br>")))
+        h(.ok(.html(formFields.map({ "\($0.0) = \($0.1)" }).joined(separator: "<br>"))))
     }
     
     server["/demo"] = scopes {
@@ -150,30 +150,30 @@ public func demoServer(_ publicDir: String) -> HttpServer {
         }
     }
     
-    server["/raw"] = { r in
-        return HttpResponse.raw(200, "OK", ["XXX-Custom-Header": "value"], { try $0.write([UInt8]("test".utf8)) })
+    server["/raw"] = { (r, h) in
+        h( HttpResponse.raw(200, "OK", ["XXX-Custom-Header": "value"], { try $0.write([UInt8]("test".utf8)) }) )
     }
     
-    server["/redirect"] = { r in
-        return .movedPermanently("http://www.google.com")
+    server["/redirect"] = { (r, h) in
+        h( .movedPermanently("http://www.google.com") )
     }
 
-    server["/long"] = { r in
+    server["/long"] = { (r, h) in
         var longResponse = ""
         for k in 0..<1000 { longResponse += "(\(k)),->" }
-        return .ok(.html(longResponse))
+        h( .ok(.html(longResponse)) )
     }
     
-    server["/wildcard/*/test/*/:param"] = { r in
-        return .ok(.html(r.path))
+    server["/wildcard/*/test/*/:param"] = { (r, h) in
+        h(.ok(.html(r.path)))
     }
     
-    server["/stream"] = { r in
-        return HttpResponse.raw(200, "OK", nil, { w in
+    server["/stream"] = { (r, h) in
+        h( HttpResponse.raw(200, "OK", nil, { w in
             for i in 0...100 {
                 try w.write([UInt8]("[chunk \(i)]".utf8))
             }
-        })
+        }))
     }
     
     server["/websocket-echo"] = websocket({ (session, text) in
@@ -182,14 +182,14 @@ public func demoServer(_ publicDir: String) -> HttpServer {
         session.writeBinary(binary)
     })
     
-    server.notFoundHandler = { r in
-        return .movedPermanently("https://github.com/404")
+    server.notFoundHandler = { (r, h) in
+        h( .movedPermanently("https://github.com/404") )
     }
     
-    server.middleware.append { r in
-        print("Middleware: \(r.address ?? "unknown address") -> \(r.method) -> \(r.path)")
-        return nil
-    }
+//    server.middleware.append { r in
+//        print("Middleware: \(r.address ?? "unknown address") -> \(r.method) -> \(r.path)")
+//        return nil
+//    }
     
     return server
 }
